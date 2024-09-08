@@ -18,7 +18,8 @@ const commentIdList = {
 	day15: "5319",
 	day16: "5358",
 	day17: "5398",
-	day18: "5433"
+	day18: "5433",
+	day19: "5504"
 };
 
 function getPointsFromComment(str) {
@@ -97,12 +98,10 @@ async function getAllDayPoints(commentIdList) {
 function calculateAndSortAveragePoints(allDayPoints) {
 	const totalPoints = {};
 	let validDayCount = 0; // Count of valid days (days with non-zero points)
-
 	// Loop through each day and sum the points for each person if the day is valid
 	allDayPoints.forEach((day) => {
 		const dayData = Object.values(day)[0]; // Get the data for the day
 		const hasValidPoints = Object.values(dayData).some((point) => point > 0); // Check if the day has any valid points
-
 		if (hasValidPoints) {
 			validDayCount++; // Increment valid day count only if the day has valid points
 			for (let person in dayData) {
@@ -114,22 +113,18 @@ function calculateAndSortAveragePoints(allDayPoints) {
 			}
 		}
 	});
-
 	// Ensure all participants have data for the valid days
 	const allParticipants = new Set(Object.keys(totalPoints));
 	allDayPoints.forEach((day) => {
 		Object.keys(day[Object.keys(day)[0]]).forEach((person) => allParticipants.add(person));
 	});
-
 	// Calculate averages over the valid days for each participant
 	const averagePoints = Array.from(allParticipants).map((person) => {
 		const total = totalPoints[person] || 0; // If no score, treat as 0
 		return [person, (total / validDayCount).toFixed(2)]; // Calculate average points over validDayCount
 	});
-
 	// Sort by average points
 	averagePoints.sort((a, b) => b[1] - a[1]);
-
 	// Return the results
 	return averagePoints;
 }
@@ -137,9 +132,6 @@ function calculateAndSortAveragePoints(allDayPoints) {
 app.get("/", async (req, res) => {
 	try {
 		const allDayPoints = await getAllDayPoints(commentIdList);
-		//save result into database
-		//fetch data from database
-		//use data to calculate average points
 		const averagePoints = calculateAndSortAveragePoints(allDayPoints);
 		res.status(200).json(averagePoints);
 	} catch (err) {
