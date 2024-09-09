@@ -1,4 +1,7 @@
 const app = require("express")();
+const connection = require("./src/config/database");
+const { create } = require("./src/models/day");
+const { createDay, getADay, getAllDays } = require("./src/services/dayService");
 
 const commentIdList = {
 	day1: "4803",
@@ -84,6 +87,13 @@ async function fetchPoints(link) {
 	}
 	return oneDayPoints;
 }
+async function getADayPoints(commentId) {
+	const linkBefore = "https://api-gateway.fullstack.edu.vn/api/comments?commentable_type=App\\Common\\Models\\Discussion&commentable_id=";
+	const linkAfter = "&page=";
+	const link = linkBefore + commentId + linkAfter;
+	const aDayPoints = await fetchPoints(link);
+	return aDayPoints;
+}
 async function getAllDayPoints(commentIdList) {
 	const linkBefore = "https://api-gateway.fullstack.edu.vn/api/comments?commentable_type=App\\Common\\Models\\Discussion&commentable_id=";
 	const linkAfter = "&page=";
@@ -100,8 +110,13 @@ function calculateAndSortAveragePoints(allDayPoints) {
 	let validDayCount = 0; // Count of valid days (days with non-zero points)
 	// Loop through each day and sum the points for each person if the day is valid
 	allDayPoints.forEach((day) => {
-		const dayData = Object.values(day)[0]; // Get the data for the day
-		const hasValidPoints = Object.values(dayData).some((point) => point > 0); // Check if the day has any valid points
+		const dayData = day.pointsOfDay; // Get the data for the day
+		let hasValidPoints;
+		if (dayData == undefined) {
+			hasValidPoints = false;
+		} else {
+			hasValidPoints = Object.values(dayData).some((point) => point > 0); // Check if the day has any valid points
+		}
 		if (hasValidPoints) {
 			validDayCount++; // Increment valid day count only if the day has valid points
 			for (let person in dayData) {
@@ -116,7 +131,9 @@ function calculateAndSortAveragePoints(allDayPoints) {
 	// Ensure all participants have data for the valid days
 	const allParticipants = new Set(Object.keys(totalPoints));
 	allDayPoints.forEach((day) => {
-		Object.keys(day[Object.keys(day)[0]]).forEach((person) => allParticipants.add(person));
+		if (day.pointsOfDay != undefined) {
+			Object.keys(day.pointsOfDay).forEach((person) => allParticipants.add(person));
+		}
 	});
 	// Calculate averages over the valid days for each participant
 	const averagePoints = Array.from(allParticipants).map((person) => {
@@ -131,8 +148,30 @@ function calculateAndSortAveragePoints(allDayPoints) {
 
 app.get("/", async (req, res) => {
 	try {
-		const allDayPoints = await getAllDayPoints(commentIdList);
+		// Connect to the database
+		await connection();
+
+		//get old data from database
+		let allDayPoints = await getAllDays();
+
+		//insert more data to database if need
+		if (allDayPoints.length < Object.keys(commentIdList).length) {
+			const min = allDayPoints.length - 1;
+			const max = Object.keys(commentIdList).length - 1;
+			for (let i = min + 1; i <= max; i++) {
+				const day = Object.keys(commentIdList)[i];
+				const commentId = commentIdList[day];
+				const pointsOfDay = await getADayPoints(commentId);
+				await createDay(day, pointsOfDay);
+			}
+		}
+
+		//get new data from database
+		allDayPoints = await getAllDays();
+
 		const averagePoints = calculateAndSortAveragePoints(allDayPoints);
+
+		//Return the average points
 		res.status(200).json(averagePoints);
 	} catch (err) {
 		console.error(err);
