@@ -20,7 +20,8 @@ const commentIdList = {
 	day16: "5358",
 	day17: "5398",
 	day18: "5433",
-	day19: "5504"
+	day19: "5504",
+	day20: "5579"
 };
 function getPointsFromComment(str) {
 	// Regular expression to match "Điểm: " or "Điểm tổng kết: " followed by a decimal number
