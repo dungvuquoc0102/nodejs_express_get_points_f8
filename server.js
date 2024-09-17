@@ -1,8 +1,9 @@
+//express
 const app = require("express")();
 //database
 const connection = require("./src/config/database");
-//controller
-const { getAveragePoints } = require("./src/controllers/homeController");
+//routes
+const api = require("./src/routes/api");
 
 //middleware
 app.use(function (req, res, next) {
@@ -10,8 +11,7 @@ app.use(function (req, res, next) {
 	res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
 	next();
 });
-// Handle requests to the root URL
-app.get("/", getAveragePoints);
+app.use("/api", api);
 
 // Start the server
 (async () => {

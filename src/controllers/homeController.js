@@ -1,6 +1,5 @@
-const { createDay, getAllDays } = require("../services/dayService");
-
-//front-end
+const { createDay, getADay, getAllDays } = require("../services/dayService");
+//hardcode
 const commentIdList = {
 	day1: "4803",
 	day2: "4841",
@@ -24,30 +23,27 @@ const commentIdList = {
 	day20: "5579"
 };
 function getPointsFromComment(str) {
-	// Regular expression to match "Điểm: " or "Điểm tổng kết: " followed by a decimal number
 	const regex = /(Điểm(?: tổng kết)?(?::)?)\s*([\d.,]+)/g;
 	let match;
 	let lastMatch = null;
-	// Loop through all matches and store the last one
 	while ((match = regex.exec(str)) !== null) {
 		lastMatch = match;
 	}
-	// If a match is found, return the number
 	if (lastMatch) {
 		let numberStr = lastMatch[2];
-		// Replace ',' with '.' if necessary for consistency
 		numberStr = numberStr.replace(",", ".");
-		// Convert to a floating-point number and return it
 		let number = parseFloat(numberStr);
 		if (number > 10) {
 			number = parseFloat((number / 3).toFixed(2));
 		}
 		return number;
 	}
-	// Return 0 if no match is found
 	return 0;
 }
-async function fetchPoints(link) {
+async function fetchADayPoints(commentId) {
+	const linkBefore = "https://api-gateway.fullstack.edu.vn/api/comments?commentable_type=App\\Common\\Models\\Discussion&commentable_id=";
+	const linkAfter = "&page=";
+	const link = linkBefore + commentId + linkAfter;
 	//Fetch comments page 1
 	let result = [];
 	const res = await fetch(link + "1");
@@ -85,86 +81,36 @@ async function fetchPoints(link) {
 	}
 	return oneDayPoints;
 }
-async function getADayPoints(commentId) {
-	const linkBefore = "https://api-gateway.fullstack.edu.vn/api/comments?commentable_type=App\\Common\\Models\\Discussion&commentable_id=";
-	const linkAfter = "&page=";
-	const link = linkBefore + commentId + linkAfter;
-	const aDayPoints = await fetchPoints(link);
-	return aDayPoints;
-}
-async function getAllDayPoints(commentIdList) {
-	const linkBefore = "https://api-gateway.fullstack.edu.vn/api/comments?commentable_type=App\\Common\\Models\\Discussion&commentable_id=";
-	const linkAfter = "&page=";
-	let allDayPoints = [];
-	for (let i = 0; i < Object.keys(commentIdList).length; i++) {
-		const link = linkBefore + commentIdList[Object.keys(commentIdList)[i]] + linkAfter;
-		const oneDayPoints = await fetchPoints(link);
-		allDayPoints.push({ [Object.keys(commentIdList)[i]]: oneDayPoints });
-	}
-	return allDayPoints;
-}
-function calculateAndSortAveragePoints(allDayPoints) {
-	const totalPoints = {};
-	let validDayCount = 0; // Count of valid days (days with non-zero points)
-	// Loop through each day and sum the points for each person if the day is valid
-	allDayPoints.forEach((day) => {
-		const dayData = day.pointsOfDay; // Get the data for the day
-		let hasValidPoints;
-		if (dayData == undefined) {
-			hasValidPoints = false;
-		} else {
-			hasValidPoints = Object.values(dayData).some((point) => point > 0); // Check if the day has any valid points
-		}
-		if (hasValidPoints) {
-			validDayCount++; // Increment valid day count only if the day has valid points
-			for (let person in dayData) {
-				if (totalPoints[person]) {
-					totalPoints[person] += dayData[person];
-				} else {
-					totalPoints[person] = dayData[person];
-				}
-			}
-		}
-	});
-	// Ensure all participants have data for the valid days
-	const allParticipants = new Set(Object.keys(totalPoints));
-	allDayPoints.forEach((day) => {
-		if (day.pointsOfDay != undefined) {
-			Object.keys(day.pointsOfDay).forEach((person) => allParticipants.add(person));
-		}
-	});
-	// Calculate averages over the valid days for each participant
-	const averagePoints = Array.from(allParticipants).map((person) => {
-		const total = totalPoints[person] || 0; // If no score, treat as 0
-		return [person, (total / validDayCount).toFixed(2)]; // Calculate average points over validDayCount
-	});
-	// Sort by average points
-	averagePoints.sort((a, b) => b[1] - a[1]);
-	// Return the results
-	return averagePoints;
-}
-
-const getAveragePoints = async (req, res) => {
+const getAllDayPointsAPI = async (req, res) => {
 	try {
 		//get old data from database
 		let allDayPoints = await getAllDays();
-		//insert more data to database if need
+		//fetch and insert more data to database if need
 		if (allDayPoints.length < Object.keys(commentIdList).length) {
 			const min = allDayPoints.length - 1;
 			const max = Object.keys(commentIdList).length - 1;
 			for (let i = min + 1; i <= max; i++) {
 				const day = Object.keys(commentIdList)[i];
 				const commentId = commentIdList[day];
-				const pointsOfDay = await getADayPoints(commentId);
+				const pointsOfDay = await fetchADayPoints(commentId);
 				await createDay(day, pointsOfDay);
 			}
 			//get new data from database after insert
 			allDayPoints = await getAllDays();
 		}
-		// Calculate and sort the average points
-		const averagePoints = calculateAndSortAveragePoints(allDayPoints);
-		//Return the average points
-		res.status(200).json(averagePoints);
+		res.status(200).json(allDayPoints);
+	} catch (err) {
+		console.error(err);
+		res.status(500).json({
+			message: "Internal server error"
+		});
+	}
+};
+const getADayPointsAPI = async (req, res) => {
+	try {
+		const dayName = req.params.dayName;
+		const aDayPoints = await getADay(dayName);
+		res.status(200).json(aDayPoints);
 	} catch (err) {
 		console.error(err);
 		res.status(500).json({
@@ -173,4 +119,4 @@ const getAveragePoints = async (req, res) => {
 	}
 };
 
-module.exports = { getAveragePoints };
+module.exports = { getAllDayPointsAPI, getADayPointsAPI };
