@@ -26,15 +26,14 @@ const commentIdList = {
 	day23: "5678"
 };
 function getPointsFromComment(str) {
-	const regex = /(Điểm(?: tổng kết)?(?::)?)\s*([\d.,]+)/g;
+	const regex = /(Điểm(?: tổng kết)?(?::)?)\s*([\d.,*]+)/g;
 	let match;
 	let lastMatch = null;
 	while ((match = regex.exec(str)) !== null) {
 		lastMatch = match;
 	}
 	if (lastMatch) {
-		let numberStr = lastMatch[2];
-		numberStr = numberStr.replace(",", ".");
+		let numberStr = lastMatch[2].replace(",", ".").replaceAll("*", "");
 		let number = parseFloat(numberStr);
 		if (number > 10) {
 			number = parseFloat((number / 3).toFixed(2));
@@ -44,32 +43,46 @@ function getPointsFromComment(str) {
 	return 0;
 }
 async function fetchADayPoints(commentId) {
-	const linkBefore = "https://api-gateway.fullstack.edu.vn/api/comments?commentable_type=App\\Common\\Models\\Discussion&commentable_id=";
-	const linkAfter = "&page=";
-	const link = linkBefore + commentId + linkAfter;
+	const vacantLink = `https://api-gateway.fullstack.edu.vn/api/comments?commentable_type=App\\Common\\Models\\Discussion&commentable_id=${commentId}&page=`;
 	//Fetch comments page 1
-	let result = [];
-	const res = await fetch(link + "1");
+	const result = [];
+	const res = await fetch(vacantLink + "1");
 	result.push(await res.json());
-	//Fetch comments page 2, 3, 4, ... if have
 	const total_pages = result[0].meta.pagination.total_pages;
-	if (total_pages > 1) {
-		for (let i = 2; i < total_pages + 1; i++) {
-			const res = await fetch(link + i);
-			result.push(await res.json());
-			result[0].data = result[0].data.concat(result[i - 1].data);
-		}
+	//Fetch comments page 2, 3, 4, ... if have
+	////use each promise
+	// if (total_pages > 1) {
+	// 	for (let i = 2; i < total_pages + 1; i++) {
+	// 		const res = await fetch(vacantLink + i);
+	// 		result.push(await res.json());
+	// 		result[0].data = result[0].data.concat(result[i - 1].data);
+	// 	}
+	// }
+	// const comments = result[0].data;
+	////use Promise.all
+	const promises = [];
+	for (let i = 2; i < total_pages + 1; i++) {
+		promises.push(fetch(vacantLink + i));
 	}
-	const comments = result[0].data;
+	const results = await Promise.all(promises);
+	results.forEach(async (res) => {
+		result.push(await res.json());
+	});
+	const firstResult = result.reduce((acc, cur) => {
+		acc.data = acc.data.concat(cur.data);
+		return acc;
+	});
+	const comments = firstResult.data;
+	//End fetch comments page 2, 3, 4, ... if have
 	// Fetch point of reply of each comment
-	let oneDayPoints = {};
-	for (let i = 0; i < comments.length; i++) {
-		const res = await fetch(`https://api-gateway.fullstack.edu.vn/api/comments?commentable_type=App\\Common\\Models\\Comment&commentable_id=${comments[i].id}&page=1`);
+	const oneDayPoints = {};
+	comments.forEach(async (comment) => {
+		const res = await fetch(`https://api-gateway.fullstack.edu.vn/api/comments?commentable_type=App\\Common\\Models\\Comment&commentable_id=${comment.id}&page=1`);
 		const result = await res.json();
 		const data = result.data;
 		if (data[0] == undefined) {
 		} else {
-			const fullName = comments[i].commentator.data.full_name;
+			const fullName = comment.commentator.data.full_name;
 			if (data.length > 1 && getPointsFromComment(data[0].comment) == 0) {
 				for (let j = 1; j < data.length; j++) {
 					if (getPointsFromComment(data[j].comment) != 0) {
@@ -81,7 +94,7 @@ async function fetchADayPoints(commentId) {
 				oneDayPoints[fullName] = getPointsFromComment(data[0].comment);
 			}
 		}
-	}
+	});
 	return oneDayPoints;
 }
 const getAllDayPointsAPI = async (req, res) => {
