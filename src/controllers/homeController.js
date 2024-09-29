@@ -1,4 +1,4 @@
-const { createDay, getADay, getAllDays } = require("../services/dayService");
+const { createDay, createDays, getADay, getAllDays } = require("../services/dayService");
 //hardcode
 const commentIdList = {
 	day1: "4803",
@@ -23,7 +23,8 @@ const commentIdList = {
 	day20: "5579",
 	day21: "5628",
 	day22: "5645",
-	day23: "5678"
+	day23: "5678",
+	day24: "5700"
 };
 function getPointsFromComment(str) {
 	const regex = /(Điểm(?: tổng kết)?(?::)?)\s*([\d.,*]+)/g;
@@ -50,45 +51,41 @@ async function fetchADayPoints(commentId) {
 	result.push(await res.json());
 	const total_pages = result[0].meta.pagination.total_pages;
 	//Fetch comments page 2, 3, 4, ... if have
-	////use each promise
-	// if (total_pages > 1) {
-	// 	for (let i = 2; i < total_pages + 1; i++) {
-	// 		const res = await fetch(vacantLink + i);
-	// 		result.push(await res.json());
-	// 		result[0].data = result[0].data.concat(result[i - 1].data);
-	// 	}
-	// }
-	// const comments = result[0].data;
-	////use Promise.all
-	const promises = [];
-	for (let i = 2; i < total_pages + 1; i++) {
-		promises.push(fetch(vacantLink + i));
+	let comments;
+	if (total_pages > 1) {
+		const promisesNumbers = [];
+		for (let i = 2; i < total_pages + 1; i++) {
+			promisesNumbers.push(i);
+		}
+		const resArr = await Promise.all(promisesNumbers.map((i) => fetch(vacantLink + i)));
+		const resultArr = await Promise.all(resArr.map((res) => res.json()));
+		const firstResult = resultArr.reduce((acc, cur) => {
+			acc.data = acc.data.concat(cur.data);
+			return acc;
+		}, result[0]);
+		comments = firstResult.data;
+	} else {
+		comments = result[0].data;
 	}
-	const results = await Promise.all(promises);
-	results.forEach(async (res) => {
-		result.push(await res.json());
-	});
-	const firstResult = result.reduce((acc, cur) => {
-		acc.data = acc.data.concat(cur.data);
-		return acc;
-	});
-	const comments = firstResult.data;
-	//End fetch comments page 2, 3, 4, ... if have
 	// Fetch point of reply of each comment
 	const oneDayPoints = {};
-	comments.forEach(async (comment) => {
-		const res = await fetch(`https://api-gateway.fullstack.edu.vn/api/comments?commentable_type=App\\Common\\Models\\Comment&commentable_id=${comment.id}&page=1`);
-		const result = await res.json();
+	const resArr = await Promise.all(comments.map((comment) => fetch(`https://api-gateway.fullstack.edu.vn/api/comments?commentable_type=App\\Common\\Models\\Comment&commentable_id=${comment.id}&page=1`)));
+	const resultArr = await Promise.all(resArr.map((res) => res.json()));
+	resultArr.forEach((result, i) => {
 		const data = result.data;
-		if (data[0] == undefined) {
+		if (data === undefined) {
+		} else if (data[0] == undefined) {
 		} else {
-			const fullName = comment.commentator.data.full_name;
+			const fullName = comments[i].commentator.data.full_name;
 			if (data.length > 1 && getPointsFromComment(data[0].comment) == 0) {
 				for (let j = 1; j < data.length; j++) {
 					if (getPointsFromComment(data[j].comment) != 0) {
 						oneDayPoints[fullName] = getPointsFromComment(data[j].comment);
 						break;
 					}
+				}
+				if (oneDayPoints[fullName] == undefined) {
+					oneDayPoints[fullName] = 0;
 				}
 			} else {
 				oneDayPoints[fullName] = getPointsFromComment(data[0].comment);
@@ -103,14 +100,10 @@ const getAllDayPointsAPI = async (req, res) => {
 		let allDayPoints = await getAllDays();
 		//fetch and insert more data to database if need
 		if (allDayPoints.length < Object.keys(commentIdList).length) {
-			const min = allDayPoints.length - 1;
-			const max = Object.keys(commentIdList).length - 1;
-			for (let i = min + 1; i <= max; i++) {
-				const day = Object.keys(commentIdList)[i];
-				const commentId = commentIdList[day];
-				const pointsOfDay = await fetchADayPoints(commentId);
-				await createDay(day, pointsOfDay);
-			}
+			const min = allDayPoints.length;
+			const newCommentIdList = Object.values(commentIdList).slice(min);
+			const pointsOfDayList = await Promise.all(newCommentIdList.map((commentId) => fetchADayPoints(commentId)));
+			await createDays(pointsOfDayList.map((pointsOfDay, i) => ({ day: Object.keys(commentIdList)[min + i], pointsOfDay })));
 			//get new data from database after insert
 			allDayPoints = await getAllDays();
 		}

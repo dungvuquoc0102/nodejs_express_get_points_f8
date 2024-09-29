@@ -8,6 +8,10 @@ const createDay = async (day, pointsOfDay) => {
 	const result = await newDay.save();
 	return result;
 };
+const createDays = async (days) => {
+	const result = await Day.insertMany(days);
+	return result;
+};
 const getADay = async (dayName) => {
 	const result = await Day.find({ day: dayName });
 	return result;
@@ -17,4 +21,4 @@ const getAllDays = async () => {
 	return result;
 };
 
-module.exports = { createDay, getADay, getAllDays };
+module.exports = { createDay, createDays, getADay, getAllDays };
