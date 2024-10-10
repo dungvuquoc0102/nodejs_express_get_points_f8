@@ -24,7 +24,10 @@ const commentIdList = {
 	day21: "5628",
 	day22: "5645",
 	day23: "5678",
-	day24: "5700"
+	day24: "5700",
+	day25: "5728",
+	day26: "5358",
+	day27: "5784"
 };
 function getPointsFromComment(str) {
 	const regex = /(Điểm(?: tổng kết)?(?::)?)\s*([\d.,*]+)/g;
