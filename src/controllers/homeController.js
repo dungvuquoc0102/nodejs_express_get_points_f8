@@ -27,7 +27,10 @@ const commentIdList = {
 	day24: "5700",
 	day25: "5728",
 	day26: "5358",
-	day27: "5784"
+	day27: "5784",
+	day28: "5799",
+	day29: "5820",
+	day30: "5836"
 };
 function getPointsFromComment(str) {
 	const regex = /(Điểm(?: tổng kết)?(?::)?)\s*([\d.,*]+)/g;
@@ -111,9 +114,8 @@ async function fetchADayPoints(commentId) {
 						break;
 					}
 				}
-			} else {
-				oneDayPoints[fullName] = getPointsFromComment(data[0].comment);
 			}
+			oneDayPoints[fullName] = getPointsFromComment(data[0].comment);
 		}
 	}
 	return oneDayPoints;
